@@ -5,7 +5,7 @@ HEADER_LENGTH = 10
 ENCODING = "UTF-8"
 
 class ChatServer():
-  def __init__(self, address='', port=1234):
+	def __init__(self, address='', port=1234):
 		self.address = address
 		self.port = port
 		self.clients = {}
