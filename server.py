@@ -87,9 +87,9 @@ def main():
 				if client_socket:
 					socket_list.append(client_socket)
 			else:
-				msg = server.receive_msg(sock)
+                msg = server.receive_msg(sock)
 				if msg:
-					server.broadcast_msg(sock, msg)
+                    server.broadcast_msg(sock, msg)
 				else:
 					server.end_connection(sock)
 					socket_list.remove(sock)
