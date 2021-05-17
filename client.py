@@ -86,7 +86,7 @@ class ChatClient():
 
 def main():
     username = input("Username: ")
-    client = ChatClient(username=username)
+    client = ChatClient(username=username, debug_mode=True)
     client.connect()
 
 if __name__ == "__main__":
