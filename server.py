@@ -1,13 +1,14 @@
 import socket
 import select
 
+ADDRESS = "127.0.0.1"
 PORT = 1234
 DEBUG_MODE = True
 HEADER_LENGTH = 10
 ENCODING = "UTF-8"
 
 class ChatServer():
-    def __init__(self, address='127.0.0.1', port):
+    def __init__(self, address, port):
         self.address = address
         self.port = port
         self.running = False
@@ -89,7 +90,8 @@ class ChatServer():
 
 
 def main():
-    server = ChatServer(PORT)
+    server = ChatServer(ADDRESS, PORT)
+    server.start()
     socket_list = [server.get_socket()]
 
     try:
