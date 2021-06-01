@@ -62,7 +62,7 @@ class ChatClient:
         return self.format_message(username, message)
 
     def format_message(self, username, message):
-        return "[" + username + "]: " + message
+        return username + ": " + message
 
     def close(self):
         self.connected = False
