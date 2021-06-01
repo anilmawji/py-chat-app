@@ -1,14 +1,14 @@
 import socket
 import select
 
+DEBUG_MODE = True
 HEADER_LENGTH = 10
 ENCODING = "UTF-8"
 
 class ChatServer():
-    def __init__(self, address='', port=1234, debug_mode=False):
+    def __init__(self, address='127.0.0.1', port=1234):
         self.address = address
         self.port = port
-        self.debug_mode = debug_mode
         self.running = False
         self.clients = {}
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -21,45 +21,35 @@ class ChatServer():
         self.running = True
         self.socket.listen(max_clients)
 
-        if self.debug_mode:
-            print(f"[STARTED] Listening for connections over {self.address}:{self.port}...")
+        if DEBUG_MODE:
+            print(f"[STARTED] listening for connections over {self.address}:{self.port}...")
 
         while self.running:
             readable, _, exceptional = select.select(self.socket_list, [], self.socket_list)
 
-            for sock in readable:
-                if sock == self.socket:
-                    client_socket = None
-                    try:
-                        client_socket, client_address = self.accept_connection()
-                        if client_socket:
-                            self.socket_list.append(client_socket)
-                    except KeyboardInterrupt:
-                        if client_socket:
-                            client_socket.close()
-                        break
+            for socket in readable:
+                if socket == self.socket:
+                    self.accept_connection()
                 else:
-                    msg = self.receive_message(sock)
+                    msg = self.receive_message(socket)
                     if msg:
-                        self.broadcast_message(sock, msg)
+                        self.broadcast_message(socket, msg)
                     else:
-                        self.end_connection(sock)
-                        self.socket_list.remove(sock)
+                        self.end_connection(socket)
 
-            #Sanity check for potentially faulty connections
-            for sock in exceptional:
-                self.end_connection(sock)
-                self.socket_list.remove(sock)
+            for socket in exceptional:
+                self.end_connection(socket)
 
     def accept_connection(self):
         client_socket, client_address = self.socket.accept()
         user = self.receive_message(client_socket)
 
         if user:
+            self.socket_list.append(client_socket)
             self.clients[client_socket] = user
 
-            if self.debug_mode:
-                print("[CONNECTED] {} has joined the chat from {}:{}".format(user['data'].decode(ENCODING), *client_address))
+            if DEBUG_MODE:
+                print("[CONNECTED] \"{}\" has joined the chat from {}:{}".format(user['data'].decode(ENCODING), *client_address))
 
             return client_socket, client_address
         return None, None
@@ -67,16 +57,16 @@ class ChatServer():
     def receive_message(self, client_socket):
         try:
             msg_header = client_socket.recv(HEADER_LENGTH)
-            if not len(msg_header): return False
+            if not len(msg_header): return None
 
             msg_length = int(msg_header.decode(ENCODING).strip())
-            data = client_socket.recv(msg_length)
+            msg_data = client_socket.recv(msg_length)
 
-            if self.debug_mode and client_socket in self.clients:
+            if DEBUG_MODE and client_socket in self.clients:
                 user = self.clients[client_socket]
-                print(f"[RECEIVED] {user['data'].decode(ENCODING)} says: {data.decode(ENCODING)}")
+                print(f"[RECEIVED] new message from \"{user['data'].decode(ENCODING)}\": {msg_data.decode(ENCODING)}")
 
-            return {'header': msg_header, 'data': data}
+            return {'header': msg_header, 'data': msg_data}
         except:
             return None
 
@@ -90,18 +80,21 @@ class ChatServer():
         return True
 
     def end_connection(self, client_socket):
-        if self.debug_mode:
-            print("[DISCONNECTED] ended connection with: {}".format(self.clients[client_socket]['data'].decode(ENCODING)))
+        user = self.clients[client_socket]
+        if not user: return False
+
+        if DEBUG_MODE:
+            print("[DISCONNECTED] connection with \"{}\" has ended".format(user['data'].decode(ENCODING)))
 
         del self.clients[client_socket]
+        self.socket_list.remove(client_socket)
 
     def stop(self):
         self.running = False
-        self.socket.shutdown(socket.SHUT_RDWR)
         self.socket.close()
 
-        if self.debug_mode:
-            print(f"[STOPPED] The server has closed all connections over {self.address}:{self.port}...")
+        if DEBUG_MODE:
+            print(f"[STOPPED] closed all connections over {self.address}:{self.port}...")
 
     def is_running(self):
         return self.running
@@ -114,10 +107,10 @@ class ChatServer():
 
 
 def main():
-    server = ChatServer(debug_mode=True)
+    server = ChatServer()
     try:
         server.start()
-    except (SystemExit, KeyboardInterrupt):
+    except SystemExit:
         server.stop()
 
 if __name__ == "__main__":
