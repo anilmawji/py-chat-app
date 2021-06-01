@@ -10,8 +10,8 @@ HEADER_LENGTH = 10
 ENCODING = "UTF-8"
 
 WIDTH = 325
-HEIGHT = 450
-THEME_COLOR = 'black'
+HEIGHT = 500
+THEME_COLOR = "#0D1216"
 
 class ChatClient:
     def __init__(self, port, username='Unknown'):
@@ -88,6 +88,7 @@ class GUI:
         self.root.title("PyChat")
         self.root.configure(width=WIDTH, height=HEIGHT, bg=THEME_COLOR)
         self.root.protocol("WM_DELETE_WINDOW", self.close)
+        self.root.resizable(False, False)
         self.root.minsize(WIDTH, HEIGHT)
 
         username_label = tk.Label(
@@ -108,10 +109,13 @@ class GUI:
             height = 2,
             bg=THEME_COLOR,
             fg='white',
-            font='Helvetica 12',
+            font='Helvetica 10',
             text='',
             padx=5,
-            pady=5)
+            pady=5,
+            wraplength=WIDTH-15,
+            justify='left',
+            anchor='nw')
         self.chat_messages.place(
             relwidth = 1,
             relheight = 0.92,
@@ -131,7 +135,7 @@ class GUI:
         self.send_button = tk.Button(
             bottom_frame,
             text='Send',
-            bg='black',
+            bg=THEME_COLOR,
             fg='white',
             command=self.send_message)
         self.send_button.place(
@@ -146,7 +150,7 @@ class GUI:
         self.message_entry.delete(0, tk.END)
 
         if len(message):
-            self.display_message(self.client.format_message("You", message))
+            self.display_message(self.client.format_message('You', message))
             self.client.send_message(message)
 
     def display_message(self, message):
