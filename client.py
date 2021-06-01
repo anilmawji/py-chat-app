@@ -62,7 +62,7 @@ class ChatClient:
         return self.format_message(username, message)
 
     def format_message(self, username, message):
-        return username + " > " + message
+        return "[" + username + "]: " + message
 
     def close(self):
         self.connected = False
@@ -146,7 +146,7 @@ class GUI:
         self.message_entry.delete(0, tk.END)
 
         if len(message):
-            self.display_message(self.client.format_message(self.client.username, message))
+            self.display_message(self.client.format_message("You", message))
             self.client.send_message(message)
 
     def display_message(self, message):
