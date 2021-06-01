@@ -1,12 +1,13 @@
 import socket
 import select
 
+PORT = 1234
 DEBUG_MODE = True
 HEADER_LENGTH = 10
 ENCODING = "UTF-8"
 
 class ChatServer():
-    def __init__(self, address='127.0.0.1', port=1234):
+    def __init__(self, address='127.0.0.1', port):
         self.address = address
         self.port = port
         self.running = False
@@ -15,7 +16,6 @@ class ChatServer():
         self.socket.setblocking(False)
         self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.socket.bind((self.address, self.port))
-        self.socket_list = [self.socket]
 
     def start(self, max_clients=100):
         self.running = True
@@ -24,28 +24,11 @@ class ChatServer():
         if DEBUG_MODE:
             print(f"[STARTED] listening for connections over {self.address}:{self.port}...")
 
-        while self.running:
-            readable, _, exceptional = select.select(self.socket_list, [], self.socket_list)
-
-            for socket in readable:
-                if socket == self.socket:
-                    self.accept_connection()
-                else:
-                    msg = self.receive_message(socket)
-                    if msg:
-                        self.broadcast_message(socket, msg)
-                    else:
-                        self.end_connection(socket)
-
-            for socket in exceptional:
-                self.end_connection(socket)
-
     def accept_connection(self):
         client_socket, client_address = self.socket.accept()
         user = self.receive_message(client_socket)
 
         if user:
-            self.socket_list.append(client_socket)
             self.clients[client_socket] = user
 
             if DEBUG_MODE:
@@ -87,7 +70,6 @@ class ChatServer():
             print("[DISCONNECTED] connection with \"{}\" has ended".format(user['data'].decode(ENCODING)))
 
         del self.clients[client_socket]
-        self.socket_list.remove(client_socket)
 
     def stop(self):
         self.running = False
@@ -107,9 +89,29 @@ class ChatServer():
 
 
 def main():
-    server = ChatServer()
+    server = ChatServer(PORT)
+    socket_list = [server.get_socket()]
+
     try:
-        server.start()
+        while server.is_running():
+            readable, _, exceptional = select.select(socket_list, [], socket_list)
+
+            for socket in readable:
+                if socket == server.get_socket():
+                    client_socket, _ = server.accept_connection()
+                    socket_list.append(client_socket)
+                else:
+                    message = server.receive_message(socket)
+                    if message:
+                        server.broadcast_message(socket, message)
+                    else:
+                        socket_list.remove(socket)
+                        server.end_connection(socket)
+
+            for socket in exceptional:
+                socket_list.remove(socket)
+                server.end_connection(socket)
+
     except SystemExit:
         server.stop()
 
