@@ -4,6 +4,7 @@ import sys
 import tkinter as tk
 import threading
 
+PORT = 1234
 DEBUG_MODE = True
 HEADER_LENGTH = 10
 ENCODING = "UTF-8"
@@ -13,7 +14,7 @@ HEIGHT = 450
 THEME_COLOR = 'black'
 
 class ChatClient:
-    def __init__(self, port=1234, username='Unknown'):
+    def __init__(self, port, username='Unknown'):
         self.port = port
         self.username = username
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -43,7 +44,7 @@ class ChatClient:
             message_header = f"{len(encoded_message):<{HEADER_LENGTH}}".encode(ENCODING)
             self.socket.sendall(message_header + encoded_message)
 
-    def retrieve_message(self):
+    def receive_message(self):
         username_header = self.socket.recv(HEADER_LENGTH)
 
         if not len(username_header):
@@ -58,6 +59,9 @@ class ChatClient:
         message_length = int(message_header.decode(ENCODING).strip())
         message = self.socket.recv(message_length).decode(ENCODING)
 
+        return self.format_message(username, message)
+
+    def format_message(self, username, message):
         return username + " > " + message
 
     def close(self):
@@ -86,32 +90,32 @@ class GUI:
         self.root.protocol("WM_DELETE_WINDOW", self.close)
         self.root.minsize(WIDTH, HEIGHT)
 
-        self.user_label = tk.Label(
+        username_label = tk.Label(
             self.root,
             bg=THEME_COLOR,
             fg='white',
             text=self.client.username,
             font='Helvetica 13 bold',
             pady=5)
-        self.user_label.place(relwidth=1)
+        username_label.place(relwidth=1)
 
         border_line = tk.Label(self.root, width=WIDTH, bg='white')
         border_line.place(relwidth=1, rely=0.07, relheight=0.012)
 
-        self.chat_messages = tk.Text(
+        self.chat_messages = tk.Label(
             self.root,
             width = 20,
             height = 2,
             bg=THEME_COLOR,
             fg='white',
-            font='Helvetica 12', 
+            font='Helvetica 12',
+            text='',
             padx=5,
             pady=5)
         self.chat_messages.place(
             relwidth = 1,
             relheight = 0.92,
             rely = 0.08)
-        self.chat_messages.configure(cursor='arrow', state='disabled')
 
         bottom_frame = tk.Label(self.root, bg=THEME_COLOR, height=80)
         bottom_frame.place(rely=0.92, relwidth=1, relheight=0.08)
@@ -128,13 +132,26 @@ class GUI:
             bottom_frame,
             text='Send',
             bg='black',
-            fg='white',)
+            fg='white',
+            command=self.send_message)
         self.send_button.place(
             relx=1,
             rely=0.1,
             relwidth=0.2,
             relheight=0.8,
             anchor='ne')
+
+    def send_message(self):
+        message = self.message_entry.get().strip()
+        self.message_entry.delete(0, tk.END)
+
+        if len(message):
+            self.display_message(self.client.format_message(self.client.username, message))
+            self.client.send_message(message)
+
+    def display_message(self, message):
+        text = self.chat_messages.cget('text') + message + "\n"
+        self.chat_messages.config(text=text)
 
     def get_client(self):
         return self.client
@@ -150,8 +167,11 @@ def handle_client(gui):
     while client.is_connected():
         try:
             while True:
+                message = client.receive_message()
+                gui.display_message(message)
+
                 if DEBUG_MODE:
-                    print(client.retrieve_message())
+                    print(message)
 
         except IOError as e:
             if DEBUG_MODE and e.errno != errno.EAGAIN and e.errno != errno.EWOULDBLOCK:
@@ -165,7 +185,7 @@ def handle_client(gui):
             sys.exit(1)
 
 def main():
-    client = ChatClient(username=input("Username: "))
+    client = ChatClient(PORT, input("Username: "))
     client.connect()
 
     gui = GUI(client)
@@ -173,7 +193,6 @@ def main():
     client_thread = threading.Thread(target=handle_client, args=(gui,))
     client_thread.start()
 
-    gui.send_button.configure(command=lambda: client.send_message("yo"))
     gui.root.mainloop()
 
 if __name__ == "__main__":
