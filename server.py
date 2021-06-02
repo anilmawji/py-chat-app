@@ -22,8 +22,7 @@ class ChatServer():
         self.running = True
         self.socket.listen(max_clients)
 
-        if DEBUG_MODE:
-            print(f"[STARTED] listening for connections over {self.address}:{self.port}...")
+        if DEBUG_MODE: print(f"[STARTED] listening for connections over {self.address}:{self.port}...")
 
     def accept_connection(self):
         client_socket, client_address = self.socket.accept()
@@ -33,8 +32,7 @@ class ChatServer():
             self.clients[client_socket] = user
             self.send_announcement(f"{user['data'].decode(ENCODING)} has joined the chat!")
 
-            if DEBUG_MODE:
-                print("[CONNECTED] \"{}\" has joined the chat over {}:{}".format(user['data'].decode(ENCODING), *client_address))
+            if DEBUG_MODE: print("[CONNECTED] \"{}\" has joined the chat over {}:{}".format(user['data'].decode(ENCODING), *client_address))
 
             return client_socket, client_address
         return None, None
@@ -81,8 +79,7 @@ class ChatServer():
 
         self.send_announcement(f"{user['data'].decode(ENCODING)} has left the chat")
 
-        if DEBUG_MODE:
-            print("[DISCONNECTED] connection with \"{}\" has ended".format(user['data'].decode(ENCODING)))
+        if DEBUG_MODE: print("[DISCONNECTED] connection with \"{}\" has ended".format(user['data'].decode(ENCODING)))
 
         del self.clients[client_socket]
 
@@ -90,8 +87,7 @@ class ChatServer():
         self.running = False
         self.socket.close()
 
-        if DEBUG_MODE:
-            print(f"[STOPPED] closed all connections over {self.address}:{self.port}...")
+        if DEBUG_MODE: print(f"[STOPPED] closed all connections over {self.address}:{self.port}...")
 
     def is_running(self):
         return self.running
