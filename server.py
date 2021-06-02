@@ -31,12 +31,24 @@ class ChatServer():
 
         if user:
             self.clients[client_socket] = user
+            self.send_announcement(f"{user['data'].decode(ENCODING)} has joined the chat!")
 
             if DEBUG_MODE:
-                print("[CONNECTED] \"{}\" has joined the chat from {}:{}".format(user['data'].decode(ENCODING), *client_address))
+                print("[CONNECTED] \"{}\" has joined the chat over {}:{}".format(user['data'].decode(ENCODING), *client_address))
 
             return client_socket, client_address
         return None, None
+
+    def send_announcement(self, msg):
+        if msg:
+            name_data = "SERVER".encode(ENCODING)
+            name_header = f"{len(name_data):<{HEADER_LENGTH}}".encode(ENCODING)
+
+            msg_data = msg.encode(ENCODING)
+            msg_header = f"{len(msg_data):<{HEADER_LENGTH}}".encode(ENCODING)
+
+            for socket in self.clients:
+                socket.sendall(name_header + name_data + msg_header + msg_data)
 
     def receive_message(self, client_socket):
         try:
@@ -54,18 +66,20 @@ class ChatServer():
         except:
             return None
 
-    def broadcast_message(self, client_socket, message):
+    def broadcast_message(self, client_socket, msg):
         user = self.clients[client_socket]
         if not user: return False
 
         for socket in self.clients:
             if socket != client_socket:
-                socket.sendall(user['header'] + user['data'] + message['header'] + message['data'])
+                socket.sendall(user['header'] + user['data'] + msg['header'] + msg['data'])
         return True
 
     def end_connection(self, client_socket):
         user = self.clients[client_socket]
         if not user: return False
+
+        self.send_announcement(f"{user['data'].decode(ENCODING)} has left the chat")
 
         if DEBUG_MODE:
             print("[DISCONNECTED] connection with \"{}\" has ended".format(user['data'].decode(ENCODING)))
@@ -98,23 +112,24 @@ def main():
         while server.is_running():
             readable, _, exceptional = select.select(socket_list, [], socket_list)
 
-            for socket in readable:
-                if socket == server.get_socket():
+            for sock in readable:
+                if sock == server.get_socket():
                     client_socket, _ = server.accept_connection()
-                    socket_list.append(client_socket)
+                    if client_socket:
+                        socket_list.append(client_socket)
                 else:
-                    message = server.receive_message(socket)
-                    if message:
-                        server.broadcast_message(socket, message)
+                    msg = server.receive_message(sock)
+                    if msg:
+                        server.broadcast_message(sock, msg)
                     else:
-                        socket_list.remove(socket)
-                        server.end_connection(socket)
+                        socket_list.remove(sock)
+                        server.end_connection(sock)
 
-            for socket in exceptional:
-                socket_list.remove(socket)
-                server.end_connection(socket)
+            for sock in exceptional:
+                socket_list.remove(sock)
+                server.end_connection(sock)
 
-    except SystemExit:
+    except (SystemExit, KeyboardInterrupt):
         server.stop()
 
 if __name__ == "__main__":
