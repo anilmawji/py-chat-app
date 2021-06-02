@@ -30,12 +30,10 @@ class ChatClient:
             name_header = f"{len(name_data):<{HEADER_LENGTH}}".encode(ENCODING)
             self.socket.sendall(name_header + name_data)
 
-            if DEBUG_MODE:
-                print(f"[CONNECTED] you are now connected to {server_address}:{self.port}")
+            if DEBUG_MODE: print(f"[CONNECTED] you are now connected to {server_address}:{self.port}")
 
         except socket.error as e:
-            if DEBUG_MODE:
-                print("Socket error: {}".format(str(e)))
+            if DEBUG_MODE: print("Socket error: {}".format(str(e)))
             sys.exit(1)
 
     def send_message(self, msg):
@@ -48,8 +46,7 @@ class ChatClient:
         name_header = self.socket.recv(HEADER_LENGTH)
 
         if not len(name_header):
-            if DEBUG_MODE:
-                print("[DISCONNECTED] connection closed by server")
+            if DEBUG_MODE: print("[DISCONNECTED] connection closed by server")
             sys.exit(0)
 
         name_length = int(name_header.decode(ENCODING).strip())
@@ -68,8 +65,7 @@ class ChatClient:
         self.connected = False
         self.socket.close()
 
-        if DEBUG_MODE:
-            print(f"[DISCONNECTED] ended connection with server")
+        if DEBUG_MODE: print(f"[DISCONNECTED] ended connection with server")
 
     def get_name(self):
         return self.name
@@ -176,8 +172,7 @@ def handle_client(gui):
                 msg = client.receive_message()
                 gui.display_message(msg)
 
-                if DEBUG_MODE:
-                    print(msg)
+                if DEBUG_MODE: print(msg)
 
         except IOError as e:
             if DEBUG_MODE and e.errno != errno.EAGAIN and e.errno != errno.EWOULDBLOCK:
@@ -186,8 +181,7 @@ def handle_client(gui):
             continue
 
         except Exception as e:
-            if DEBUG_MODE:
-                print("Reading error: {}".format(str(e)))
+            if DEBUG_MODE: print("Reading error: {}".format(str(e)))
             sys.exit(1)
 
 def main():
