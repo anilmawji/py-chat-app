@@ -14,9 +14,9 @@ HEIGHT = 500
 THEME_COLOR = "#0D1216"
 
 class ChatClient:
-    def __init__(self, port, username='Unknown'):
+    def __init__(self, port, name='Unknown'):
         self.port = port
-        self.username = username
+        self.name = name
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.connected = False
 
@@ -26,9 +26,9 @@ class ChatClient:
             self.socket.setblocking(False)
             self.connected = True
 
-            encoded_username = self.username.encode(ENCODING)
-            username_header = f"{len(encoded_username):<{HEADER_LENGTH}}".encode(ENCODING)
-            self.socket.sendall(username_header + encoded_username)
+            name_data = self.name.encode(ENCODING)
+            name_header = f"{len(name_data):<{HEADER_LENGTH}}".encode(ENCODING)
+            self.socket.sendall(name_header + name_data)
 
             if DEBUG_MODE:
                 print(f"[CONNECTED] you are now connected to {server_address}:{self.port}")
@@ -38,31 +38,31 @@ class ChatClient:
                 print("Socket error: {}".format(str(e)))
             sys.exit(1)
 
-    def send_message(self, message):
-        if message:
-            encoded_message = message.encode(ENCODING)
-            message_header = f"{len(encoded_message):<{HEADER_LENGTH}}".encode(ENCODING)
-            self.socket.sendall(message_header + encoded_message)
+    def send_message(self, msg):
+        if msg:
+            msg_data = msg.encode(ENCODING)
+            msg_header = f"{len(msg_data):<{HEADER_LENGTH}}".encode(ENCODING)
+            self.socket.sendall(msg_header + msg_data)
 
     def receive_message(self):
-        username_header = self.socket.recv(HEADER_LENGTH)
+        name_header = self.socket.recv(HEADER_LENGTH)
 
-        if not len(username_header):
+        if not len(name_header):
             if DEBUG_MODE:
                 print("[DISCONNECTED] connection closed by server")
             sys.exit(0)
 
-        username_length = int(username_header.decode(ENCODING).strip())
-        username = self.socket.recv(username_length).decode(ENCODING)
+        name_length = int(name_header.decode(ENCODING).strip())
+        name = self.socket.recv(name_length).decode(ENCODING)
 
-        message_header = self.socket.recv(HEADER_LENGTH)
-        message_length = int(message_header.decode(ENCODING).strip())
-        message = self.socket.recv(message_length).decode(ENCODING)
+        msg_header = self.socket.recv(HEADER_LENGTH)
+        msg_length = int(msg_header.decode(ENCODING).strip())
+        msg = self.socket.recv(msg_length).decode(ENCODING)
 
-        return self.format_message(username, message)
+        return self.format_message(name, msg)
 
-    def format_message(self, username, message):
-        return username + ": " + message
+    def format_message(self, name, msg):
+        return name + ": " + msg
 
     def close(self):
         self.connected = False
@@ -71,8 +71,8 @@ class ChatClient:
         if DEBUG_MODE:
             print(f"[DISCONNECTED] ended connection with server")
 
-    def get_username(self):
-        return self.username
+    def get_name(self):
+        return self.name
 
     def get_socket(self):
         return self.socket
@@ -85,38 +85,34 @@ class GUI:
     def __init__(self, client):
         self.client = client
         self.root = tk.Tk()
-        self.root.title("PyChat")
+        self.root.title("Chatroom")
         self.root.configure(width=WIDTH, height=HEIGHT, bg=THEME_COLOR)
         self.root.protocol("WM_DELETE_WINDOW", self.close)
-        self.root.resizable(False, False)
         self.root.minsize(WIDTH, HEIGHT)
 
-        username_label = tk.Label(
+        name_label = tk.Label(
             self.root,
             bg=THEME_COLOR,
             fg='white',
-            text=self.client.username,
+            text=self.client.name,
             font='Helvetica 13 bold',
             pady=5)
-        username_label.place(relwidth=1)
+        name_label.place(relwidth=1)
 
         border_line = tk.Label(self.root, width=WIDTH, bg='white')
         border_line.place(relwidth=1, rely=0.07, relheight=0.012)
 
-        self.chat_messages = tk.Label(
+        self.chat_msgs = tk.Text(
             self.root,
-            width = 20,
-            height = 2,
             bg=THEME_COLOR,
             fg='white',
             font='Helvetica 10',
-            text='',
             padx=5,
             pady=5,
-            wraplength=WIDTH-15,
-            justify='left',
-            anchor='nw')
-        self.chat_messages.place(
+            wrap=tk.WORD,
+            cursor='arrow',
+            state=tk.DISABLED)
+        self.chat_msgs.place(
             relwidth = 1,
             relheight = 0.92,
             rely = 0.08)
@@ -124,13 +120,13 @@ class GUI:
         bottom_frame = tk.Label(self.root, bg=THEME_COLOR, height=80)
         bottom_frame.place(rely=0.92, relwidth=1, relheight=0.08)
 
-        self.message_entry = tk.Entry(bottom_frame, bg='white')
-        self.message_entry.place(
+        self.msg_box = tk.Entry(bottom_frame, bg='white')
+        self.msg_box.place(
             relx=0,
             rely=0.1,
             relwidth=0.8,
             relheight=0.8)
-        self.message_entry.focus()
+        self.msg_box.focus()
 
         self.send_button = tk.Button(
             bottom_frame,
@@ -145,17 +141,23 @@ class GUI:
             relheight=0.8,
             anchor='ne')
 
+        scrollbar = tk.Scrollbar(self.chat_msgs)
+        scrollbar.place(relheight=1, relx=0.974)
+        scrollbar.config(command=self.chat_msgs.yview)
+
     def send_message(self):
-        message = self.message_entry.get().strip()
-        self.message_entry.delete(0, tk.END)
+        msg = self.msg_box.get().strip()
+        self.msg_box.delete(0, tk.END)
 
-        if len(message):
-            self.display_message(self.client.format_message('You', message))
-            self.client.send_message(message)
+        if len(msg):
+            self.display_message(self.client.format_message('You', msg))
+            self.client.send_message(msg)
 
-    def display_message(self, message):
-        text = self.chat_messages.cget('text') + message + "\n"
-        self.chat_messages.config(text=text)
+    def display_message(self, msg):
+        self.chat_msgs.config(state=tk.NORMAL)
+        self.chat_msgs.insert(tk.END, msg + "\n\n")
+        self.chat_msgs.config(state=tk.DISABLED)
+        self.chat_msgs.see(tk.END)
 
     def get_client(self):
         return self.client
@@ -171,11 +173,11 @@ def handle_client(gui):
     while client.is_connected():
         try:
             while True:
-                message = client.receive_message()
-                gui.display_message(message)
+                msg = client.receive_message()
+                gui.display_message(msg)
 
                 if DEBUG_MODE:
-                    print(message)
+                    print(msg)
 
         except IOError as e:
             if DEBUG_MODE and e.errno != errno.EAGAIN and e.errno != errno.EWOULDBLOCK:
