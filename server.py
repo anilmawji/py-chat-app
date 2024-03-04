@@ -64,14 +64,14 @@ class ChatServer():
         except:
             return None
 
-    def broadcast_message(self, client_socket, msg):
-        user = self.clients[client_socket]
-        if not user: return False
+    # def broadcast_message(self, client_socket, msg):
+    #     user = self.clients[client_socket]
+    #     if not user: return False
 
-        for socket in self.clients:
-            if socket != client_socket:
-                socket.sendall(user['header'] + user['data'] + msg['header'] + msg['data'])
-        return True
+    #     for socket in self.clients:
+    #         if socket != client_socket:
+    #             socket.sendall(user['header'] + user['data'] + msg['header'] + msg['data'])
+    #     return True
 
     def end_connection(self, client_socket):
         user = self.clients[client_socket]
@@ -99,8 +99,8 @@ class ChatServer():
         return self.socket
 
 
-def main():
-    server = ChatServer(ADDRESS, PORT)
+def run(port=PORT):
+    server = ChatServer(ADDRESS, int(port))
     server.start()
     socket_list = [server.get_socket()]
 
@@ -116,7 +116,8 @@ def main():
                 else:
                     msg = server.receive_message(sock)
                     if msg:
-                        server.broadcast_message(sock, msg)
+                        # server.broadcast_message(sock, msg)
+                        pass
                     else:
                         socket_list.remove(sock)
                         server.end_connection(sock)
@@ -127,6 +128,3 @@ def main():
 
     except (SystemExit, KeyboardInterrupt):
         server.stop()
-
-if __name__ == "__main__":
-    main()
