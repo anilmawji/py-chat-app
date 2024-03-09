@@ -1,103 +1,145 @@
 import socket
-import errno
-import sys
-import tkinter as tk
-import threading
-
-PORT = 1234
-DEBUG_MODE = True
-HEADER_LENGTH = 10
-ENCODING = "UTF-8"
+import select
 
 
-class ChatClient:
-    def __init__(self, port, name='Unknown'):
-        self.port = port
-        self.name = name
-        self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.connected = False
+class Client:
+    def __init__(
+        self,
+        id: str,
+        header_length: int,
+        encoding: str = "UTF-8",
+        debug_mode: bool = False
+    ):
+        self.id = id
+        self.header_length = header_length
+        self.encoding = encoding
+        self.debug_mode = debug_mode
+        self._running = False
+        self._connections = {}
+    
 
-    def connect(self, server_address='127.0.0.1', port=PORT):
+    def start(self):
+        self._running = True
+
         try:
-            self.port = int(port)
-            self.socket.connect((server_address, self.port))
-            self.socket.setblocking(False)
-            self.connected = True
+            while self._running:
+                socket_list = self._connections.values()
+                readable, _, exceptional = select.select(socket_list, [], socket_list, 2)
+            
+                for sock in readable:
+                    if self.receive_message(sock):
+                        pass
 
-            name_data = self.name.encode(ENCODING)
-            name_header = f"{len(name_data):<{HEADER_LENGTH}}".encode(ENCODING)
-            self.socket.sendall(name_header + name_data)
+                for sock in exceptional:
+                    socket_list.remove(sock)
+                    self.disconnect(sock)
+        except (SystemExit, KeyboardInterrupt):
+            self.stop()
+    
 
-            if DEBUG_MODE: print(f"[CONNECTED] you are now connected to {server_address}:{self.port}")
+    def stop(self):
+        if not self._running: return False
+
+        self._running = False
+        self.disconnect_all()
+
+        if self.debug_mode:
+            print(f"[{self.id}] closed all connections")
+
+        return True
+
+
+    def connect(self, server_id: str, server_address: str, server_port: int):
+        if self._connections.get(server_id):
+            if self.debug_mode:
+                print(f"[{self.id}] error: already connected to {server_address}:{server_port}")
+            return False
+
+        try:
+            client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            client_socket.connect((server_address, server_port))
+            client_socket.setblocking(False)
+
+            name_data = self.id.encode(self.encoding)
+            name_header = f"{len(name_data):<{self.header_length}}".encode(self.encoding)
+            client_socket.sendall(name_header + name_data)
+
+            self._connections[server_id] = client_socket
+
+            if self.debug_mode:
+                print(f"[{self.id}] successfully connected to {server_address}:{server_port}")
+
+            return True
 
         except socket.error as e:
-            if DEBUG_MODE: print("Socket error: {}".format(str(e)))
-            sys.exit(1)
+            if self.debug_mode:
+                print(f"[{self.id}] socket error: {str(e)}")
+            return False
 
-    def send_message(self, msg):
-        if msg:
-            msg_data = msg.encode(ENCODING)
-            msg_header = f"{len(msg_data):<{HEADER_LENGTH}}".encode(ENCODING)
-            self.socket.sendall(msg_header + msg_data)
 
-    def receive_message(self):
-        name_header = self.socket.recv(HEADER_LENGTH)
+    def disconnect(self, server_id: str):
+        client_socket: socket.socket = self._connections.get(server_id)
+
+        if not client_socket:
+            if self.debug_mode:
+                print(f"[{self.id}] error: failed to disconnect from \"{server_id}\": not connected")
+            return False
+
+        try:
+            client_socket.close()
+            self._connections[server_id] = None
+
+            if self.debug_mode:
+                print(f"[{self.id}] disconnected from \"{server_id}\"")
+
+            return True
+
+        except socket.error as e:
+            if self.debug_mode:
+                print(f"[{self.id}] error: failed to disconnect from \"{server_id}\": {str(e)}")
+            return False
+
+
+    def disconnect_all(self):
+        for server_id, client_socket in self._connections:
+            try:
+                client_socket.close()
+                self._connections[server_id] = None
+            except socket.error as e:
+                if self.debug_mode:
+                    print(f"[{self.id}] error: failed to disconnect from \"{server_id}\": {str(e)}")
+
+
+    def send_message(self, server_id: str, message: str):
+        client_socket: socket.socket = self._connections.get(server_id)
+
+        if not client_socket:
+            if self.debug_mode:
+                print(f"[{self.id}] error: not connected to the \"{server_id}\"")
+            return False
+
+        if message:
+            msg_data = message.encode(self.encoding)
+            msg_header = f"{len(msg_data):<{self.header_length}}".encode(self.encoding)
+            client_socket.sendall(msg_header + msg_data)
+
+
+    def receive_message(self, server_id: str):
+        client_socket: socket.socket = self._connections[server_id]
+        name_header = client_socket.recv(self.header_length)
 
         if not len(name_header):
-            if DEBUG_MODE: print("[DISCONNECTED] connection closed by server")
-            sys.exit(0)
+            if self.debug_mode:
+                print(f"[{self.id}] forcefully disconnected from \"{server_id}\"")
+            return None
 
-        name_length = int(name_header.decode(ENCODING).strip())
-        name = self.socket.recv(name_length).decode(ENCODING)
+        name_length = int(name_header.decode(self.encoding).strip())
+        name = client_socket.recv(name_length).decode(self.encoding)
 
-        msg_header = self.socket.recv(HEADER_LENGTH)
-        msg_length = int(msg_header.decode(ENCODING).strip())
-        msg = self.socket.recv(msg_length).decode(ENCODING)
-        print(self.format_message(name, msg))
+        msg_header = client_socket.recv(self.header_length)
+        msg_length = int(msg_header.decode(self.encoding).strip())
+        message = client_socket.recv(msg_length).decode(self.encoding)
 
-        return self.format_message(name, msg)
+        return name + ": " + message
+    
 
-    def format_message(self, name, msg):
-        return name + ": " + msg
-
-    def close(self):
-        self.connected = False
-        self.socket.close()
-
-        if DEBUG_MODE: print(f"[DISCONNECTED] ended connection with server")
-
-    def get_name(self):
-        return self.name
-
-    def get_socket(self):
-        return self.socket
-
-    def is_connected(self):
-        return self.connected
-
-
-def handle_client(client):
-    while client.is_connected():
-        try:
-            # while True:
-            #     msg = client.receive_message()
-            #     if DEBUG_MODE: print(msg)
-            client.send_message(input(f"{client.get_name()}: "))
-          
-        except IOError as e:
-            if DEBUG_MODE and e.errno != errno.EAGAIN and e.errno != errno.EWOULDBLOCK:
-                print("Reading error: {}".format(str(e)))
-                sys.exit(1)
-            continue
-
-        except Exception as e:
-            if DEBUG_MODE: print("Reading error: {}".format(str(e)))
-            sys.exit(1)
-
-
-def run():
-    client = ChatClient(PORT, input("Username: "))
-    client.connect(input("server: "), input("port: "))
-
-    client_thread = threading.Thread(target=handle_client, args=(client,))
-    client_thread.start()

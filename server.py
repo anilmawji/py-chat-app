@@ -1,130 +1,181 @@
 import socket
 import select
+from typing import Callable, Optional
 
-ADDRESS = "127.0.0.1"
-PORT = 1234
-DEBUG_MODE = True
-HEADER_LENGTH = 10
-ENCODING = "UTF-8"
 
-class ChatServer():
-    def __init__(self, address, port):
+class Server():
+    def __init__(
+        self,
+        id: str,
+        address: str,
+        port: int,
+        header_length: int,
+        on_message_received: Optional[Callable] = None,
+        encoding: str = "UTF-8",
+        debug_mode: bool = False,
+    ):
+        self.id = id
         self.address = address
         self.port = port
-        self.running = False
-        self.clients = {}
-        self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.socket.setblocking(False)
-        self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self.socket.bind((self.address, self.port))
+        self.header_length = header_length
+        self._on_message_received = on_message_received
+        self.encoding = encoding
+        self.debug_mode = debug_mode
+        self._running = False
+        self._clients = {}
 
-    def start(self, max_clients=100):
-        self.running = True
-        self.socket.listen(max_clients)
 
-        if DEBUG_MODE: print(f"[STARTED] listening for connections over {self.address}:{self.port}...")
+    def start(self, max_clients: int = 100):
+        self._socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self._socket.setblocking(False)
+        self._socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self._socket.bind((self.address, self.port))
+        self._socket.listen(max_clients)
+
+        if self.debug_mode:
+            print(f"[{self.id}] started listening for connections on {self.address}:{self.port}...")
+        
+        self._running = True
+        socket_list = [self._socket]
+
+        try:
+            while self._running:
+                # Get sockets ready to read from & sockets that threw an error
+                # Use a timeout of 2 seconds so we periodically interrupt the select call to check for exceptions
+                readable, _, exceptional = select.select(socket_list, [], socket_list, 2)
+
+                for sock in readable:
+                    # Check if we are ready to read in a new connection from the server socket
+                    if sock == self._socket:
+                        client_socket, _ = self.accept_connection()
+
+                        if client_socket:
+                            socket_list.append(client_socket)
+                    else:
+                        # Otherwise assume the message was from a client
+                        if not self.receive_message(sock):
+                            # End the connection if the message was empty
+                            socket_list.remove(sock)
+                            self.disconnect(sock)
+
+                for sock in exceptional:
+                    socket_list.remove(sock)
+                    self.disconnect(sock)
+        except (SystemExit, KeyboardInterrupt):
+            self.stop()
+
+
+    def stop(self):
+        if not self._running: return False
+
+        self._running = False
+        self._socket.close()
+        self._clients = {}
+
+        if self.debug_mode:
+            print(f"[{self.id}] stopped listening for connections on {self.address}:{self.port}...")
+        
+        return True
+
 
     def accept_connection(self):
-        client_socket, client_address = self.socket.accept()
+        client_socket, client_address = self._socket.accept()
         user = self.receive_message(client_socket)
 
         if user:
-            self.clients[client_socket] = user
-            self.send_announcement(f"{user['data'].decode(ENCODING)} has joined the chat!")
+            self._clients[client_socket] = user
 
-            if DEBUG_MODE: print("[CONNECTED] \"{}\" has joined the chat over {}:{}".format(user['data'].decode(ENCODING), *client_address))
+            if self.debug_mode:
+                print(f"[{self.id}] \"{user['data'].decode(self.encoding)}\" has connected from {client_address[0]}:{client_address[1]}")
 
             return client_socket, client_address
         return None, None
+    
 
-    def send_announcement(self, msg):
-        if msg:
-            name_data = "SERVER".encode(ENCODING)
-            name_header = f"{len(name_data):<{HEADER_LENGTH}}".encode(ENCODING)
+    def disconnect(self, client_socket: socket.socket):
+        user = self._clients[client_socket]
 
-            msg_data = msg.encode(ENCODING)
-            msg_header = f"{len(msg_data):<{HEADER_LENGTH}}".encode(ENCODING)
+        if not user:
+            if self.debug_mode:
+                print(f"[{self.id}] Error: a connection with \"{user['data'].decode(self.encoding)}\" does not exist")
+            return False
 
-            for socket in self.clients:
-                socket.sendall(name_header + name_data + msg_header + msg_data)
+        del self._clients[client_socket]
 
-    def receive_message(self, client_socket):
+        if self.debug_mode:
+            print(f"[{self.id}] connection with \"{user['data'].decode(self.encoding)}\" has ended")
+
+
+    def receive_message(self, client_socket: socket.socket):
         try:
-            msg_header = client_socket.recv(HEADER_LENGTH)
+            msg_header = client_socket.recv(self.header_length)
+
             if not len(msg_header): return None
 
-            msg_length = int(msg_header.decode(ENCODING).strip())
+            msg_length = int(msg_header.decode(self.encoding).strip())
             msg_data = client_socket.recv(msg_length)
 
-            if DEBUG_MODE and client_socket in self.clients:
-                user = self.clients[client_socket]
-                print(f"[RECEIVED] new message from \"{user['data'].decode(ENCODING)}\": {msg_data.decode(ENCODING)}")
+            if self.debug_mode and client_socket in self._clients:
+                user = self._clients[client_socket]
+                print(f"[{user['data'].decode(self.encoding)}] {msg_data.decode(self.encoding)}")
+
+            if msg_header and msg_data:
+                self._on_message_received(msg_header, msg_data)
+            
+            #self.send_message(client_socket, "hello from the server side")
 
             return {'header': msg_header, 'data': msg_data}
         except:
             return None
 
-    # def broadcast_message(self, client_socket, msg):
-    #     user = self.clients[client_socket]
-    #     if not user: return False
 
-    #     for socket in self.clients:
-    #         if socket != client_socket:
-    #             socket.sendall(user['header'] + user['data'] + msg['header'] + msg['data'])
-    #     return True
+    def send_message(self, client_socket: socket.socket, message: str):
+        if not message: return
 
-    def end_connection(self, client_socket):
-        user = self.clients[client_socket]
-        if not user: return False
+        message = self.encode_message(message)
+        
+        if client_socket in self._clients:
+            client_socket.sendall(message)
 
-        self.send_announcement(f"{user['data'].decode(ENCODING)} has left the chat")
 
-        if DEBUG_MODE: print("[DISCONNECTED] connection with \"{}\" has ended".format(user['data'].decode(ENCODING)))
+    def broadcast_message(self, message: str):
+        if not message: return
 
-        del self.clients[client_socket]
+        message = self.encode_message(message)
 
-    def stop(self):
-        self.running = False
-        self.socket.close()
+        for socket in self._clients:
+            socket.sendall(message)
 
-        if DEBUG_MODE: print(f"[STOPPED] closed all connections over {self.address}:{self.port}...")
 
+    def encode_message(self, message: str):
+        name_data = self.id.encode(self.encoding)
+        name_header = f"{len(name_data):<{self.header_length}}".encode(self.encoding)
+
+        msg_data = message.encode(self.encoding)
+        msg_header = f"{len(msg_data):<{self.header_length}}".encode(self.encoding)
+
+        return name_header + name_data + msg_header + msg_data
+
+
+    def get_id(self):
+        return self.id
+
+
+    def get_address(self):
+        return self.address
+    
+
+    def get_port(self):
+        return self.port
+    
+
+    def get_encoding(self):
+        return self.encoding
+
+
+    def get_header_length(self):
+        return self.header_length
+
+    @property
     def is_running(self):
-        return self.running
-
-    def get_clients(self):
-        return self.clients
-
-    def get_socket(self):
-        return self.socket
-
-
-def run(port=PORT):
-    server = ChatServer(ADDRESS, int(port))
-    server.start()
-    socket_list = [server.get_socket()]
-
-    try:
-        while server.is_running():
-            readable, _, exceptional = select.select(socket_list, [], socket_list)
-
-            for sock in readable:
-                if sock == server.get_socket():
-                    client_socket, _ = server.accept_connection()
-                    if client_socket:
-                        socket_list.append(client_socket)
-                else:
-                    msg = server.receive_message(sock)
-                    if msg:
-                        # server.broadcast_message(sock, msg)
-                        pass
-                    else:
-                        socket_list.remove(sock)
-                        server.end_connection(sock)
-
-            for sock in exceptional:
-                socket_list.remove(sock)
-                server.end_connection(sock)
-
-    except (SystemExit, KeyboardInterrupt):
-        server.stop()
+        return self._running
