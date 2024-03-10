@@ -1,9 +1,11 @@
-from old.client_old import ChatClient
-import threading
+import peer_state
 
 
-print("starting client")
-c = ChatClient(23456, "karl")
-c.connect("127.0.0.1", 12345)
-c = threading.Thread(target=c.run)
-c.start()
+class Peer():
+    def __init__(self):
+        self._state = peer_state.INITIAL
+        self._tracker_connections = []
+
+    
+    def send_tracker_request(self):
+        pass

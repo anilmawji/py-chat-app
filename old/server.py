@@ -3,6 +3,9 @@ import select
 from typing import Callable, Optional
 
 
+TEXT_ENCODING = 'utf-8'
+
+
 class Server():
     def __init__(
         self,
@@ -11,7 +14,6 @@ class Server():
         port: int,
         header_length: int,
         on_message_received: Optional[Callable] = None,
-        encoding: str = "UTF-8",
         debug_mode: bool = False,
     ):
         self.id = id
@@ -19,7 +21,6 @@ class Server():
         self.port = port
         self.header_length = header_length
         self._on_message_received = on_message_received
-        self.encoding = encoding
         self.debug_mode = debug_mode
         self._running = False
         self._clients = {}
@@ -80,13 +81,13 @@ class Server():
 
     def accept_connection(self):
         client_socket, client_address = self._socket.accept()
-        user = self.receive_message(client_socket)
+        client_id: bytes = self.receive_message(client_socket)
 
-        if user:
-            self._clients[client_socket] = user
+        if client_id:
+            self._clients[client_socket] = client_id
 
             if self.debug_mode:
-                print(f"[{self.id}] \"{user['data'].decode(self.encoding)}\" has connected from {client_address[0]}:{client_address[1]}")
+                print(f"[{self.id}] \"{client_id.decode(TEXT_ENCODING)}\" has connected from {client_address[0]}:{client_address[1]}")
 
             return client_socket, client_address
         return None, None
