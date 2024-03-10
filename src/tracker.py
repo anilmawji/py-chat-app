@@ -1,6 +1,5 @@
 import socket
 import select
-from peer import Peer
 
 
 TEXT_ENCODING = 'utf-8'
