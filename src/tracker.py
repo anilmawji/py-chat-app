@@ -17,7 +17,7 @@ class Tracker():
         self.id = address + ":" + port
         self.debug_mode = debug_mode
         self._running = False
-        self._peer_sockets = {}
+        self._peer_sockets = []
         self._torrents = []
 
 
@@ -46,7 +46,7 @@ class Tracker():
                         peer_socket, _ = self._socket.accept()
 
                         if message := self.receive_peer_request(peer_socket):
-                            self._peer_sockets[peer_socket] = True  # TODO: Only register peer if the request is of valid form
+                            self._peer_sockets.append(peer_socket)  # TODO: Only register peer if the request is of valid form
                             self.handle_peer_request(peer_socket, message)
                         else:
                             # Peer did not send a request with the initial connection
@@ -69,7 +69,7 @@ class Tracker():
             # TODO: Parse requests of arbirary size
             message = peer_socket.recv(10)
 
-            if self.debug_mode and self._peer_sockets[peer_socket]:
+            if self.debug_mode and peer_socket in self._peer_sockets:
                 peer_name = self.get_peer_name(peer_socket)
                 print(f"[{peer_name}] {message.decode(TEXT_ENCODING)}")
 
@@ -90,15 +90,14 @@ class Tracker():
 
 
     def disconnect(self, peer_socket: socket.socket):
-        peer_is_connected = self._peer_sockets[peer_socket]
         peer_name = self.get_peer_name(peer_socket)
 
-        if not peer_is_connected:
+        if not peer_socket in self._peer_sockets:
             if self.debug_mode:
                 print(f"[{self.id}] Error: a connection with \"{peer_name}\" does not exist")
             return False
 
-        del self._peer_sockets[peer_socket]
+        self._peer_sockets.remove(peer_socket)
 
         if self.debug_mode:
             print(f"[{self.id}] connection with \"{peer_name}\" has ended")
