@@ -109,3 +109,14 @@ class Tracker():
 
     def stop_listening():
         pass
+    
+def main(address='localhost', port=8080):
+    tracker = Tracker(address, port, debug_mode=True)
+    tracker.listen_for_peer_requests()
+    
+if __name__ == "__main__":
+    import sys
+    if len(sys.argv) > 1:
+        main(sys.argv[1], int(sys.argv[2]))
+    else:
+        main()
