@@ -3,12 +3,13 @@ import select
 import peer_state
 from torrent import Torrent
 
-
 class Peer():
     def __init__(self):
+        self._torrent = None
         self._state = peer_state.INITIAL
-        self._tracker_connections = []
-        self._peer_connections = []
+        self._tracker_connections = [] # List of connected tracker tuples - (ip_address, port)
+        self._peer_connections = [] # List of connected peer tuples - (ip_address, port)
+        self._pieces = [] # List of piece / peer tuples - (piece, peer)
 
 
     def connect_to_tracker(self, server_id: str, address: str, port: int):
