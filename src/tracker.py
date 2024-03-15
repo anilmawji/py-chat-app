@@ -101,7 +101,7 @@ class Tracker():
     def get_peer_name(self, peer_socket: socket.socket):
         address, port = peer_socket.getsockname()
         
-        return address + ":" + port
+        return address + ":" + str(port)
 
 
     def disconnect(self, peer_socket: socket.socket):
@@ -125,7 +125,7 @@ class Tracker():
     def stop_listening():
         pass
     
-def main(address='localhost', port=1234):
+def main(address='localhost', port=6969):
     tracker = Tracker(address, port, debug_mode=True)
     tracker.listen_for_peer_requests()
     

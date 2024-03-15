@@ -5,7 +5,7 @@ from piece import Piece
 class Torrent():
     def __init__(self, file_name = '', tracker_endpoints = [], total_length = 0, piece_length = 0, pieces = [], pieces_count = 0):
         self.file_name = file_name
-        self.tracker_endpoints = tracker_endpoints  # List of tuples - (ip_address, port) each taken from a tracker url (urls are extracted from announce-list in metadata - to start, support only HTTP URLs)
+        self.tracker_endpoints = tracker_endpoints  # List of tuples - (tracker_url, ip_address, port) each taken from a tracker url (urls are extracted from announce-list in metadata - to start, support only HTTP URLs)
         self.total_length = total_length  # Total file length in bytes
         self.piece_length = piece_length  # Piece size in bytes
         self.pieces = pieces              # Concatenation of all 20-byte SHA1 hash values
@@ -41,7 +41,7 @@ class Torrent():
         for tracker in tracker_list:
             _, tracker_address, tracker_port = tracker.split(':')
             tracker_address = tracker_address[2:]
-            tracker_tuples.append((tracker_address, int(tracker_port)))
+            tracker_tuples.append((tracker, tracker_address, int(tracker_port)))
 
         return tracker_tuples
 

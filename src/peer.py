@@ -21,7 +21,7 @@ class Peer():
     def get_torrent(self, file_path: str):
         self._torrent = Torrent.read_metadata(file_path)
         for tracker in self._torrent.tracker_endpoints:
-            if self.connect_to_tracker(self.get_peer_name(), tracker[0], tracker[1]):
+            if self.connect_to_tracker(tracker[0], tracker[1], tracker[2]):
                 break
 
 
@@ -77,7 +77,7 @@ class Peer():
     def get_peer_name(self, peer_socket: socket.socket):
         address, port = peer_socket.getsockname()
         
-        return address + ":" + port
+        return address + ":" + str(port)
 
     
     def send_tracker_request(self):
