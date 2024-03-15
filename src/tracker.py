@@ -14,7 +14,9 @@ class Tracker():
         port: int,
         debug_mode: bool = False,
     ):
-        self.id = address + ":" + port
+        self.id = address + ":" + str(port)
+        self.address = address
+        self.port = port
         self.debug_mode = debug_mode
         self._running = False
         self._peer_sockets = []
@@ -78,6 +80,19 @@ class Tracker():
             return None
 
 
+    def stop(self):
+        if not self._running: return False
+
+        self._running = False
+        self._socket.close()
+        self._peer_sockets = []
+
+        if self.debug_mode:
+            print(f"[{self.id}] stopped listening for connections on {self.address}:{self.port}...")
+        
+        return True
+
+
     def handle_peer_request(self, peer_socket: socket.socket, message: str):
         # TODO: Parse request type and call send_response_to_peer()
         pass
@@ -110,7 +125,7 @@ class Tracker():
     def stop_listening():
         pass
     
-def main(address='localhost', port=8080):
+def main(address='localhost', port=1234):
     tracker = Tracker(address, port, debug_mode=True)
     tracker.listen_for_peer_requests()
     
