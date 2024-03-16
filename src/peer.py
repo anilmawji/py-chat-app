@@ -35,26 +35,13 @@ class Peer():
             self.socket.connect((address, port))
             self.socket.setblocking(False)
 
+            print(self.get_peer_name(self.socket))
+
+            # msg: connect: <filename>
             name_data = f"{self.get_peer_name(self.socket)}".encode(self.encoding)
             name_header = f"{len(name_data):<{self.header_length}}".encode(self.encoding)
             self.socket.sendall(name_header + name_data)
-
-            msg_header = self.socket.recv(self.header_length)
-            if not len(msg_header): return None
-
-            name_header = self.socket.recv(self.header_length)
-
-            if not len(name_header):
-                if self.debug_mode:
-                    print(f"[{self.id}] forcefully disconnected from \"{server_id}\"")
-                return None
-
-            header_length = int(name_header.decode(self.encoding).strip())
-            name = self.socket.recv(header_length).decode(self.encoding)
-
-            msg_header = self.socket.recv(self.header_length)
-            msg_length = int(msg_header.decode(self.encoding).strip())
-            message = self.socket.recv(msg_length).decode(self.encoding)
+            print(f"Sent name data: {name_data}")
 
             self._tracker_connections.append({
                 "id": server_id,
@@ -62,6 +49,15 @@ class Peer():
                 "port": port,
                 "socket": self.socket
             })
+
+            msg_header = self.socket.recv(1024)
+
+            if not len(msg_header): return None
+
+            msg_length = int(msg_header.decode(self.encoding).strip())
+            message = self.socket.recv(msg_length).decode(self.encoding)
+            print(f"Received message: {message}")
+
 
             if self.debug_mode:
                 print(f"Peer successfully connected to {address}:{port}")

@@ -5,31 +5,6 @@ class _PeerState():
         self._peer_choking = peer_choking
         self._peer_interested = peer_interested
 
-    #getter methods
-    def am_choking(self):
-        return self._am_choking
-    
-    def am_interested(self):
-        return self._am_interested
-    
-    def peer_choking(self):
-        return self._peer_choking
-    
-    def peer_interested(self):
-        return self._peer_interested
-    
-    #setter methods
-    def set_own_choking(self, choking: bool):
-        self._am_choking = choking
-    
-    def set_own_interested(self, interested: bool):
-        self._am_interested = interested
-
-    def set_peer_choking(self, choking: bool):
-        self._peer_choking = choking
-    
-    def set_peer_interested(self, choking: bool):
-        self._peer_interested = choking
 
     def set_none(self):
         self._am_choking = None

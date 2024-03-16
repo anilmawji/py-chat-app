@@ -20,7 +20,7 @@ class Tracker():
         self.debug_mode = debug_mode
         self._running = False
         self._peer_sockets = []
-        self._torrents = []
+        self._torrents = {} # { <filename>: [peer1, peer2, ...] }
 
 
     def listen_for_peer_requests(self, max_clients: int = 100):
@@ -46,8 +46,10 @@ class Tracker():
                     # Check if we are ready to read in a new connection from the server socket
                     if sock == self._socket:
                         peer_socket, _ = self._socket.accept()
+                        print(f"socket accept {peer_socket}")
 
                         if message := self.receive_peer_request(peer_socket):
+                            print(f"message {message}")
                             self._peer_sockets.append(peer_socket)  # TODO: Only register peer if the request is of valid form
                             self.handle_peer_request(peer_socket, message)
                         else:
@@ -68,12 +70,16 @@ class Tracker():
     # Temporary message handler, tracker accepts text only instead of GET requests
     def receive_peer_request(self, peer_socket: socket.socket):
         try:
-            # TODO: Parse requests of arbirary size
-            message = peer_socket.recv(10)
+            msg_header = peer_socket.recv(1024)
+
+            if not len(msg_header): return None
+
+            msg_length = int(msg_header.decode(TEXT_ENCODING).strip())
+            message = peer_socket.recv(msg_length).decode(TEXT_ENCODING)
 
             if self.debug_mode and peer_socket in self._peer_sockets:
                 peer_name = self.get_peer_name(peer_socket)
-                print(f"[{peer_name}] {message.decode(TEXT_ENCODING)}")
+                # print(f"[{peer_name}] {message.decode(TEXT_ENCODING)}")
 
             return message
         except:
@@ -94,8 +100,14 @@ class Tracker():
 
 
     def handle_peer_request(self, peer_socket: socket.socket, message: str):
-        # TODO: Parse request type and call send_response_to_peer()
-        pass
+        if message == "stop":
+            self.disconnect(peer_socket)
+            return
+        elif "connect:" in message:
+            file_name = message.split(":")[1].strip()
+            self._torrents[file_name] = self._torrents.get(file_name, []) + [peer_socket]
+
+            self.send_peers_to_peer(peer_socket)
 
 
     def get_peer_name(self, peer_socket: socket.socket):
@@ -118,8 +130,14 @@ class Tracker():
             print(f"[{self.id}] connection with \"{peer_name}\" has ended")
 
 
-    def send_response_to_peer(swelf, peer_socket: socket.socket):
-        pass
+    def send_peers_to_peer(self, peer_socket: socket.socket, file_name: str):
+        peer_list = self._torrents.get(file_name, [])
+        peer_list = [self.get_peer_name(peer) for peer in peer_list]
+
+        # msg: peers: <peer1> <peer2> ...
+        peer_data = " ".join(peer_list).encode(TEXT_ENCODING)
+        peer_header = f"{len(peer_data):<{1024}}".encode(TEXT_ENCODING)
+        peer_socket.sendall(peer_header + peer_data)
 
 
     def stop_listening():
