@@ -29,17 +29,32 @@ class Peer():
             msg = self.connect_to_tracker(tracker[0], tracker[1], tracker[2], file_name)
             if msg:
                 peer_names = msg.split(' ')
+                print(f"peer names: {peer_names}")
                 for name in peer_names:
                     address, port = name.split(":")
                     port = int(port)
                     tracker_addr, tracker_port = self.tracker_socket.getsockname()
-                    if address != tracker_addr and tracker_port != port:
+                    print(f"tracker: {tracker_addr} {tracker_port}")
+                    if tracker_port != port:
                         print(f"message from tracker: {address} {port}")
-                        self.connect_to_peer(address,port)
+                        self.connect_to_peer(address, port)
                 break
 
+            while True:
+                try:
+                    if msg_header := self.tracker_socket.recv(1024):
+                        msg_length = int(msg_header.decode(TEXT_ENCODING).strip())
+                        msg = self.tracker_socket.recv(msg_length).decode(TEXT_ENCODING)
 
-    def connect_to_tracker(self, server_id: str, address: str, port: int, file_name: str):
+                        print(f"Received message: {msg}")
+
+                        return msg
+
+                except IOError as e:
+                    time.sleep(1)
+
+
+    def connect_to_tracker(self, server_id: str, address: str, port: int, file_name: str, mode: str = "leach"):
         if [tracker for tracker in self._tracker_connections if tracker["id"] == server_id]:
             if self.debug_mode:
                 print(f"[{self.get_peer_name(self._socket)}] error: already connected to {address}:{port}")
@@ -52,7 +67,7 @@ class Peer():
             print(f"sending handshake to tracker")
 
             # msg: connect: <filename>
-            name_data = f"connect:{file_name}".encode(TEXT_ENCODING)
+            name_data = f"{mode}:{file_name}:{self.address}:{self.port}".encode(TEXT_ENCODING)
             name_header = f"{len(name_data):<{self.header_length}}".encode(TEXT_ENCODING)
             self.tracker_socket.sendall(name_header + name_data)
 
@@ -197,7 +212,7 @@ def main():
     peer = Peer()
 
     if seeding == "1":
-        peer.connect_to_tracker("id", "127.0.0.1", 6969, file_name)
+        peer.connect_to_tracker("id", "127.0.0.1", 6969, file_name, "seed")
         peer.start_seeding("127.0.0.1", 35654, file_name)
 
     elif seeding == "0":

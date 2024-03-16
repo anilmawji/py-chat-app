@@ -1,5 +1,6 @@
 import socket
 import select
+import time
 
 
 TEXT_ENCODING = 'utf-8'
@@ -20,7 +21,8 @@ class Tracker():
         self.debug_mode = debug_mode
         self._running = False
         self._peer_sockets = []
-        self._torrents = {} # { <filename>: [peer1, peer2, ...] }
+        self._seeds = {} # { <filename>: [peer1, peer2, ...] }
+        self._leaches = {} # { <filename>: [peer1, peer2, ...] }
 
 
     def listen_for_peer_requests(self, max_clients: int = 100):
@@ -59,6 +61,8 @@ class Tracker():
 
                 for sock in exceptional:
                     self.disconnect(sock)
+
+                time.sleep(0.1)
         except (SystemExit, KeyboardInterrupt):
             self.stop()
 
@@ -80,13 +84,26 @@ class Tracker():
         if message == "stop":
             self.disconnect(peer_socket)
             return
-        elif message.startswith("connect:"):
+        elif message.startswith("leach:"):
             print(f"initial handshake from peer: {message}")
+            print(f"peer: {peer_socket.getpeername()}")
             file_name = message.split(":")[1].strip()
-            self._torrents[file_name] = self._torrents.get(file_name, []) + [peer_socket]
+            if file_name not in self._leaches:
+                self._leaches[file_name] = []
 
+            self._leaches[file_name].append(peer_socket)
+            print(f"seeds: {self._seeds}")
             self.send_peers_to_peer(peer_socket, file_name)
+        elif message.startswith("seed:"):
+            print(f"initial handshake from peer: {message}")
+            print(f"peer: {peer_socket.getpeername()}")
+            _, file_name, req_addr, req_port = message.split(":")
+            if file_name not in self._seeds:
+                self._seeds[file_name] = []
 
+            self._seeds[file_name].append([req_addr, req_port])
+            print(f"seeds: {self._seeds}")
+            self.send_ack(peer_socket)
 
     def stop(self):
         if not self._running: return False
@@ -102,7 +119,7 @@ class Tracker():
 
 
     def get_peer_name(self, peer_socket: socket.socket):
-        address, port = peer_socket.getsockname()
+        address, port = peer_socket.getpeername()
         
         return address + ":" + str(port)
 
@@ -122,14 +139,17 @@ class Tracker():
 
 
     def send_peers_to_peer(self, peer_socket: socket.socket, file_name: str):
-        peer_list = self._torrents.get(file_name, [])
-        peer_list = [self.get_peer_name(peer) for peer in peer_list]
+        peer_list = self._seeds.get(file_name, []) # filename: [[addr, port], ...]
+        peer_data = " ".join([f"{addr}:{port}" for addr, port in peer_list]).encode(TEXT_ENCODING)
 
         # msg: peers: <peer1> <peer2> ...
-        peer_data = " ".join(peer_list).encode(TEXT_ENCODING)
         peer_header = f"{len(peer_data):<{1024}}".encode(TEXT_ENCODING)
         peer_socket.sendall(peer_header + peer_data)
 
+    def send_ack(self, peer_socket: socket.socket):
+        ack_data = "ack".encode(TEXT_ENCODING)
+        ack_header = f"{len(ack_data):<{1024}}".encode(TEXT_ENCODING)
+        peer_socket.sendall(ack_header + ack_data)
 
     def stop_listening():
         pass
