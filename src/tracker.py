@@ -33,7 +33,7 @@ class Tracker():
         self._socket.listen(max_clients)
 
         if self.debug_mode:
-            print(f"[{self.id}] started listening for connections on {self.address}:{self.port}...")
+            print(f"Started listening for connections on {self.address}:{self.port}...")
         
         self._running = True
 
@@ -48,7 +48,7 @@ class Tracker():
                     # Check if we are ready to read in a new connection from the server socket
                     if sock == self._socket:
                         peer_socket, _ = self._socket.accept()
-                        print(f"accepted connection from {self.get_peer_name(peer_socket)}")
+                        print(f"Accepted connection from: {self.get_peer_name(peer_socket)}")
 
                         self._peer_sockets.append(peer_socket)
                     else:
@@ -85,7 +85,8 @@ class Tracker():
             self.disconnect(peer_socket)
             return
         elif message.startswith("leach:"):
-            print(f"initial handshake from peer: {message}")
+            print(f"Handshake from peer: {message}")
+
             print(f"peer: {peer_socket.getpeername()}")
             file_name = message.split(":")[1].strip()
             if file_name not in self._leaches:
@@ -95,7 +96,8 @@ class Tracker():
             print(f"seeds: {self._seeds}")
             self.send_peers_to_peer(peer_socket, file_name)
         elif message.startswith("seed:"):
-            print(f"initial handshake from peer: {message}")
+            print(f"Handshake from peer: {message}")
+
             print(f"peer: {peer_socket.getpeername()}")
             _, file_name, req_addr, req_port = message.split(":")
             if file_name not in self._seeds:
@@ -113,7 +115,7 @@ class Tracker():
         self._peer_sockets = []
 
         if self.debug_mode:
-            print(f"[{self.id}] stopped listening for connections on {self.address}:{self.port}...")
+            print(f"Stopped listening for connections on {self.address}:{self.port}...")
         
         return True
 
@@ -129,13 +131,13 @@ class Tracker():
 
         if not peer_socket in self._peer_sockets:
             if self.debug_mode:
-                print(f"[{self.id}] Error: a connection with \"{peer_name}\" does not exist")
+                print(f"Error: a connection with \"{peer_name}\" does not exist")
             return False
 
         self._peer_sockets.remove(peer_socket)
 
         if self.debug_mode:
-            print(f"[{self.id}] connection with \"{peer_name}\" has ended")
+            print(f"Connection with \"{peer_name}\" has ended")
 
 
     def send_peers_to_peer(self, peer_socket: socket.socket, file_name: str):

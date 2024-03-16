@@ -25,28 +25,32 @@ class Peer():
 
     def get_torrent(self, file_name: str):
         self._torrent = Torrent.read_metadata(file_name)
+        #self._torrent.tracker_endpoints.append(('http://localhost:6000', 'localhost', 6000))
+
         for tracker in self._torrent.tracker_endpoints:
+            print(f"Attempting to connect to tracker: {tracker}")
+
             msg = self.connect_to_tracker(tracker[0], tracker[1], tracker[2], file_name)
-            if msg:
+            if msg and msg != "failed":
                 peer_names = msg.split(' ')
-                print(f"peer names: {peer_names}")
+
                 for name in peer_names:
                     address, port = name.split(":")
                     port = int(port)
                     tracker_addr, tracker_port = self.tracker_socket.getsockname()
-                    print(f"tracker: {tracker_addr} {tracker_port}")
+
                     if tracker_port != port:
-                        print(f"message from tracker: {address} {port}")
-                        self.connect_to_peer(address, port)
+                        print(f"Peer info from tracker: {address} {port}")
+                        self.connect_to_peer(address, port, file_name)
                 break
+            elif msg == "failed":
+                continue
 
             while True:
                 try:
                     if msg_header := self.tracker_socket.recv(1024):
                         msg_length = int(msg_header.decode(TEXT_ENCODING).strip())
                         msg = self.tracker_socket.recv(msg_length).decode(TEXT_ENCODING)
-
-                        print(f"Received message: {msg}")
 
                         return msg
 
@@ -63,8 +67,7 @@ class Peer():
         try:
             self.tracker_socket.connect((address, port))
             self.tracker_socket.setblocking(False)
-
-            print(f"sending handshake to tracker")
+            self.tracker_socket.settimeout(3)
 
             # msg: connect: <filename>
             name_data = f"{mode}:{file_name}:{self.address}:{self.port}".encode(TEXT_ENCODING)
@@ -79,26 +82,27 @@ class Peer():
             })
 
             if self.debug_mode:
-                print(f"peer successfully connected to {address}:{port}")
+                print(f"Connected to tracker {address}:{port}")
             
             while True:
-                print('waiting')
                 try:
                     if msg_header := self.tracker_socket.recv(1024):
                         msg_length = int(msg_header.decode(TEXT_ENCODING).strip())
                         msg = self.tracker_socket.recv(msg_length).decode(TEXT_ENCODING)
                         
-                        print(f"Received message: {msg}")
+                        print(f"Received response from tracker: {msg}")
 
                         return msg
-
+                    
+                except socket.timeout as e:
+                    return "failed"
                 except IOError as e:
                     time.sleep(1)
 
         except socket.error as e:
             if self.debug_mode:
                 print(f"Peer socket error: {str(e)}")
-            return None
+            return "failed"
 
 
     def get_peer_name(self, peer_socket: socket.socket):
@@ -133,7 +137,7 @@ class Peer():
                     # Check if we are ready to read in a new connection from the server socket
                     if sock == self._socket:
                         peer_socket, _ = self._socket.accept()
-                        print(f"accepted connection from {self.get_peer_name(peer_socket)}")
+                        print(f"Accepted connection from peer: {self.get_peer_name(peer_socket)}")
 
                         self._peer_sockets.append(peer_socket)
                     else:
@@ -147,7 +151,7 @@ class Peer():
                 for sock in exceptional:
                     self.disconnect(sock)
         except (SystemExit, KeyboardInterrupt):
-            print("stopped listening")
+            return
 
 
     def receive_peer_request(self, peer_socket: socket.socket):
@@ -157,7 +161,7 @@ class Peer():
             msg_length = int(msg_header.decode(TEXT_ENCODING).strip())
             message = peer_socket.recv(msg_length).decode(TEXT_ENCODING)
             
-            print(f"message from peer: {message}")
+            print(f"Request for file from peer: {message}")
 
             return message
         except:
@@ -183,7 +187,7 @@ class Peer():
             print(f"[{peer_name}] connection with \"{peer_name}\" has ended")
 
     
-    def connect_to_peer(self, address, port):
+    def connect_to_peer(self, address, port, file_name):
         try:
             peer_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             peer_socket.connect((address, port))
@@ -191,11 +195,17 @@ class Peer():
 
             self._peer_sockets.append(peer_socket)
 
-            print(f"sending handshake to peer")
+            print(f"Sending handshake to peer")
 
-            name_data = f"me want file now".encode(TEXT_ENCODING)
+            name_data = file_name.encode(TEXT_ENCODING)
             name_header = f"{len(name_data):<{self.header_length}}".encode(TEXT_ENCODING)
             peer_socket.sendall(name_header + name_data)
+
+            while True:
+                self.receive_peer_request(peer_socket)
+                # TODO: Check for new piece from peer
+                time.sleep(1)
+
 
         except socket.error as e:
             if self.debug_mode:
@@ -207,7 +217,7 @@ def main():
     file_name = "alice.torrent"
     #file_name = input("Enter the path to the .torrent file: ")
 
-    seeding = input("Enter 0 if downloading or 1 if seeding:")
+    seeding = input("Enter 0 if downloading or 1 if seeding: ")
 
     peer = Peer()
 

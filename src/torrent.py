@@ -21,9 +21,9 @@ class Torrent():
                 return None
             contents = bencode.decode(torrentfile.read())
 
-        print(f"Contents: {contents}")
+        #print(f"Contents: {contents}")
         info = contents.get('info')
-        print(f"pieces: {info.get('pieces')}")
+        #print(f"pieces: {info.get('pieces')}")
         return Torrent(
             file_name=info.get('name'),
             tracker_endpoints=Torrent.create_tracker_list(contents.get('announce')),
