@@ -9,8 +9,10 @@ TEXT_ENCODING = 'utf-8'
 
 
 class Peer():
-    def __init__(self):
+    def __init__(self, address: str = "127.0.0.1", port: int = 35654, debug_mode: bool = True):
         self._state = peer_state.INITIAL
+        self.address = address
+        self.port = port
         self._tracker_connections = [] # List of connected tracker tuples - (ip_address, port, socket)
         self._peer_sockets = [] # List of connected peer sockets
         self._pieces = [] # List of piece / peer tuples - (piece, peer)
