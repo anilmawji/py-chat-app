@@ -31,12 +31,15 @@ class Peer():
             print(f"Attempting to connect to tracker: {tracker}")
 
             msg = self.connect_to_tracker(tracker[0], tracker[1], tracker[2], file_name)
+            
             if msg and msg != "failed":
-                peer_names = msg.split(' ')
+                # Successful connection to tracker
+                peer_names = msg.split(" ")
 
                 for name in peer_names:
                     address, port = name.split(":")
                     port = int(port)
+
                     tracker_addr, tracker_port = self.tracker_socket.getsockname()
 
                     if tracker_port != port:
@@ -44,6 +47,7 @@ class Peer():
                         self.connect_to_peer(address, port, file_name)
                 break
             elif msg == "failed":
+                # Failed to connect to tracker, attempt connection with next tracker
                 continue
 
             while True:
