@@ -110,7 +110,7 @@ class Peer():
 
 
     def get_peer_name(self, peer_socket: socket.socket):
-        address, port = peer_socket.getsockname()
+        address, port = peer_socket.getpeername()
         
         return address + ":" + str(port)
 
