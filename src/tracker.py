@@ -46,19 +46,15 @@ class Tracker():
                     # Check if we are ready to read in a new connection from the server socket
                     if sock == self._socket:
                         peer_socket, _ = self._socket.accept()
-                        print(f"socket accept {peer_socket}")
+                        print(f"accepted connection from {self.get_peer_name(peer_socket)}")
 
-                        if message := self.receive_peer_request(peer_socket):
-                            print(f"message {message}")
-                            self._peer_sockets.append(peer_socket)  # TODO: Only register peer if the request is of valid form
-                            self.handle_peer_request(peer_socket, message)
-                        else:
-                            # Peer did not send a request with the initial connection
-                            self.disconnect(peer_socket)
+                        self._peer_sockets.append(peer_socket)
                     else:
-                        message = self.receive_peer_request(sock)
                         # Otherwise assume the message was from a peer
+                        message = self.receive_peer_request(sock)
+                        
                         if message:
+                            #print(f"message from peer {message}")
                             self.handle_peer_request(sock, message)
 
                 for sock in exceptional:
@@ -72,18 +68,24 @@ class Tracker():
         try:
             msg_header = peer_socket.recv(1024)
 
-            if not len(msg_header): return None
-
             msg_length = int(msg_header.decode(TEXT_ENCODING).strip())
             message = peer_socket.recv(msg_length).decode(TEXT_ENCODING)
-
-            if self.debug_mode and peer_socket in self._peer_sockets:
-                peer_name = self.get_peer_name(peer_socket)
-                # print(f"[{peer_name}] {message.decode(TEXT_ENCODING)}")
 
             return message
         except:
             return None
+
+
+    def handle_peer_request(self, peer_socket: socket.socket, message: str):
+        if message == "stop":
+            self.disconnect(peer_socket)
+            return
+        elif message.startswith("connect:"):
+            print(f"initial handshake from peer: {message}")
+            file_name = message.split(":")[1].strip()
+            self._torrents[file_name] = self._torrents.get(file_name, []) + [peer_socket]
+
+            self.send_peers_to_peer(peer_socket, file_name)
 
 
     def stop(self):
@@ -97,17 +99,6 @@ class Tracker():
             print(f"[{self.id}] stopped listening for connections on {self.address}:{self.port}...")
         
         return True
-
-
-    def handle_peer_request(self, peer_socket: socket.socket, message: str):
-        if message == "stop":
-            self.disconnect(peer_socket)
-            return
-        elif "connect:" in message:
-            file_name = message.split(":")[1].strip()
-            self._torrents[file_name] = self._torrents.get(file_name, []) + [peer_socket]
-
-            self.send_peers_to_peer(peer_socket)
 
 
     def get_peer_name(self, peer_socket: socket.socket):

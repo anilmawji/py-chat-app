@@ -34,6 +34,7 @@ class _PeerState():
         peer interested: {str(self._peer_interested)})'''
         return stateLog
 
+
 #Inital base state where all false
 INITIAL = _PeerState(
     am_choking=False,
