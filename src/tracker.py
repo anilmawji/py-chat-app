@@ -1,3 +1,5 @@
+from node import Node
+
 import socket
 import select
 import time
@@ -7,7 +9,7 @@ TEXT_ENCODING = 'utf-8'
 
 
 # To start with, we will only support HTTP trackers and not UDP trackers
-class Tracker():
+class Tracker(Node):
 
     def __init__(
         self,
@@ -15,17 +17,17 @@ class Tracker():
         port: int,
         debug_mode: bool = False,
     ):
+        super().__init__(address, port, debug_mode)
         self.id = address + ":" + str(port)
-        self.address = address
-        self.port = port
-        self.debug_mode = debug_mode
         self._running = False
         self._peer_sockets = []
         self._seeds = {} # { <filename>: [peer1, peer2, ...] }
         self._leaches = {} # { <filename>: [peer1, peer2, ...] }
 
 
-    def listen_for_peer_requests(self, max_clients: int = 100):
+    def start(self, *args, **kwargs):
+        max_clients = kwargs.get("max_clients", 100)
+
         self._socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._socket.setblocking(False)
         self._socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -105,7 +107,7 @@ class Tracker():
 
             self._seeds[file_name].append([req_addr, req_port])
             print(f"seeds: {self._seeds}")
-            self.send_ack(peer_socket)
+            self.send_message(peer_socket, "ack")
 
     def stop(self):
         if not self._running: return False
@@ -122,7 +124,7 @@ class Tracker():
 
     def get_peer_name(self, peer_socket: socket.socket):
         address, port = peer_socket.getpeername()
-        
+
         return address + ":" + str(port)
 
 
@@ -148,21 +150,6 @@ class Tracker():
         peer_header = f"{len(peer_data):<{1024}}".encode(TEXT_ENCODING)
         peer_socket.sendall(peer_header + peer_data)
 
-    def send_ack(self, peer_socket: socket.socket):
-        ack_data = "ack".encode(TEXT_ENCODING)
-        ack_header = f"{len(ack_data):<{1024}}".encode(TEXT_ENCODING)
-        peer_socket.sendall(ack_header + ack_data)
 
     def stop_listening():
         pass
-    
-def main(address='localhost', port=6969):
-    tracker = Tracker(address, port, debug_mode=True)
-    tracker.listen_for_peer_requests()
-    
-if __name__ == "__main__":
-    import sys
-    if len(sys.argv) > 1:
-        main(sys.argv[1], int(sys.argv[2]))
-    else:
-        main()
